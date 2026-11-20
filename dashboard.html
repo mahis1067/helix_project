@@ -12,15 +12,18 @@
       <div class="brand"><span class="brand-mark">DH</span> Dining Hall Intelligence</div>
       <div class="nav-links">
         <a class="active" href="/">Dashboard</a>
+        <a href="/inventory.html">Kitchen inventory</a>
         <a href="/graphs.html">Graph gallery</a>
+        <a href="/databases.html">Databases</a>
+        <a href="/details.html">How it works</a>
       </div>
     </nav>
 
     <section class="hero">
       <div class="hero-copy">
-        <span class="eyebrow">Live meal recommendation</span>
-        <h1>Plan the next service with less waste.</h1>
-        <p>Recommendations combine predicted turnout, dish popularity, historical leftovers, available ingredients, and meal-time fit.</p>
+        <span class="eyebrow">Service planning</span>
+        <h1>Meal preparation</h1>
+        <p>Score, stock coverage, and portion allocation for the current service.</p>
         <div class="controls">
           <label>Day
             <select id="day">
@@ -35,83 +38,36 @@
               <option value="evening">Dinner / Evening</option>
             </select>
           </label>
-          <label>Available ingredients
-            <input id="available" placeholder="eggs, flour, milk">
-          </label>
         </div>
       </div>
       <aside class="recommendation">
-        <span class="eyebrow" style="color:#b9cff0">Recommended dish</span>
-        <h2 id="chosenDish">Loading...</h2>
-        <div class="score" id="chosenScore"></div>
-        <div id="chosenIngredients" class="tags" style="margin-top:12px"></div>
+        <span class="eyebrow" style="color:#b9cff0">Predicted turnout</span>
+        <h2 id="turnout">Loading...</h2>
+        <p style="color:#b9cff0;margin:8px 0 0">Expected students for this service</p>
       </aside>
     </section>
 
     <section class="grid">
-      <article class="card span-4">
-        <h3>Service forecast</h3>
-        <div class="metric-row" style="grid-template-columns:1fr">
-          <div class="metric">
-            <label>Predicted turnout</label>
-            <strong id="turnout">--</strong>
-          </div>
-        </div>
-      </article>
-
-      <article class="card span-8">
+      <article class="card span-12">
         <h3>Top alternatives</h3>
         <div id="recommendations" class="recommendation-grid"></div>
       </article>
 
       <article class="card span-6">
-        <h3>Most consumed dishes</h3>
-        <ul id="popular" class="list"></ul>
+        <h3>Recommended dishes: made vs. consumed</h3>
+        <div id="recommendedConsumption" class="comparison-chart"></div>
       </article>
 
       <article class="card span-6">
-        <h3>Average leftovers by time</h3>
-        <ul id="leftovers" class="list"></ul>
-      </article>
-
-      <article class="card span-8">
-        <h3>Add an entry</h3>
-        <div class="entry-tabs">
-          <button class="active" data-table="table1_attendance">Attendance</button>
-          <button data-table="table2_dishes">Dish</button>
-          <button data-table="table3_ingredients">Purchase</button>
-        </div>
-
-        <form id="attendanceForm" class="entry-form" data-table="table1_attendance">
-          <label>Date<input type="date" name="date" required></label>
-          <label>Day<select name="day" required><option>Monday</option><option>Tuesday</option><option>Wednesday</option><option>Thursday</option><option>Friday</option><option>Saturday</option><option>Sunday</option></select></label>
-          <label>Time<select name="time_period" required><option>morning</option><option>afternoon</option><option>evening</option></select></label>
-          <label>Students<input type="number" name="number_of_students" min="0" required></label>
-          <button class="primary" type="submit">Add attendance</button>
-        </form>
-
-        <form id="dishForm" class="entry-form hidden" data-table="table2_dishes">
-          <label>Date<input type="date" name="date" required></label>
-          <label>Dish<input name="dish" required></label>
-          <label>Ingredients<input name="ingredients" placeholder="chicken, lettuce, cheese" required></label>
-          <label>Amount made<input type="number" name="amount_made" min="1" required></label>
-          <label>Time<select name="time_of_day_served" required><option>morning</option><option>afternoon</option><option>evening</option></select></label>
-          <label>Leftover<input type="number" name="leftover" min="0" required></label>
-          <button class="primary" type="submit">Add dish</button>
-        </form>
-
-        <form id="purchaseForm" class="entry-form hidden" data-table="table3_ingredients">
-          <label>Purchase date<input type="date" name="purchase_date" required></label>
-          <label>Ingredient<input name="ingredient_bought" required></label>
-          <label>Amount (kg)<input type="number" name="amount_kg" min="0.01" step="0.01" required></label>
-          <button class="primary" type="submit">Add purchase</button>
-        </form>
-        <div id="entryStatus" class="status"></div>
+        <h3>Average leftovers for recommended dishes</h3>
+        <div id="recommendedLeftovers" class="comparison-chart"></div>
       </article>
 
       <article class="card span-4">
         <h3>Carbon hotspots</h3>
         <ul id="carbon" class="list"></ul>
+        <h3 style="margin-top:18px">Selected dish ingredients</h3>
+        <ul id="dishCarbon" class="list"></ul>
       </article>
     </section>
   </main>

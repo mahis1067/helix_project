@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Recommendation Details</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <nav>
+      <div class="brand"><span class="brand-mark">DH</span> Dining Hall Intelligence</div>
+      <div class="nav-links">
+        <a href="/">Dashboard</a>
+        <a href="/inventory.html">Kitchen inventory</a>
+        <a href="/graphs.html">Graph gallery</a>
+        <a href="/databases.html">Databases</a>
+        <a class="active" href="/details.html">How it works</a>
+      </div>
+    </nav>
+
+    <article class="card" style="margin-bottom:18px">
+      <span class="eyebrow">Transparent ranking</span>
+      <h1 style="margin:8px 0 4px">How the recommendation score works</h1>
+      <p style="color:var(--muted);margin:0">Every dish receives a score out of 100. The highest five scores are shown as alternatives.</p>
+    </article>
+
+    <section class="grid">
+      <article class="card span-12">
+        <div class="formula-code">Score = 35 x meal-fit + 25 x popularity + 20 x low-waste + 20 x ingredient coverage</div>
+      </article>
+      <div class="card span-12 formula-grid" style="display:grid">
+        <div class="formula"><strong>35 points - Meal fit</strong><p>A preferred dish for the selected meal period receives up to 1.5 points after scaling. Historically served-period matches receive an additional half point.</p></div>
+        <div class="formula"><strong>25 points - Popularity</strong><p>The consumed share is portions consumed divided by portions made. Higher historical consumption earns more points.</p></div>
+        <div class="formula"><strong>20 points - Low waste</strong><p>Calculated as 1 minus the dish's historical leftover ratio. Lower leftover percentages earn more points.</p></div>
+        <div class="formula"><strong>20 points - Ingredient coverage</strong><p>Percentage of the dish's listed ingredients available in kitchen inventory. No manual ingredient selection is used on the dashboard.</p></div>
+      </div>
+      <article class="card span-6">
+        <h3>Carbon information</h3>
+        <p>Carbon estimates use the workbook emission factor for each ingredient: <strong>stock or quantity x kg CO2e/kg</strong>. The dashboard's carbon hotspot ranking totals purchased kilograms times each ingredient's emission factor.</p>
+      </article>
+      <article class="card span-6">
+        <h3>Turnout and inventory</h3>
+        <p>Predicted turnout uses historical attendance for the selected day and meal period. If there is no exact match, it uses the average attendance for that period. Inventory directly changes ingredient coverage.</p>
+        <p>Each alternative's amount to make is allocated from predicted turnout in proportion to its recommendation score, so the suggested portions add up to the predicted turnout.</p>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

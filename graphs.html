@@ -12,7 +12,10 @@
       <div class="brand"><span class="brand-mark">R</span> Decision Graph Gallery</div>
       <div class="nav-links">
         <a href="/">Dashboard</a>
+        <a href="/inventory.html">Kitchen inventory</a>
         <a class="active" href="/graphs.html">Graph gallery</a>
+        <a href="/databases.html">Databases</a>
+        <a href="/details.html">How it works</a>
       </div>
     </nav>
 
@@ -22,19 +25,40 @@
       <p style="color:var(--muted);margin:0">Each graph is generated from the workbook and the R analysis. Open the PDF copy for a print-friendly view.</p>
     </article>
 
-    <section class="gallery-grid">
-      <figure class="card graph-card"><img src="/plots/turnout_by_period.png" alt="Turnout by time period"><figcaption>Turnout by time period</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/turnout_by_day.png" alt="Turnout by day"><figcaption>Turnout by day of week</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/turnout_heatmap.png" alt="Turnout heatmap"><figcaption>Average turnout: day × time period</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/turnout_by_week.png" alt="Turnout by week"><figcaption>Turnout by week of term</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/tree1_turnout.png" alt="Turnout decision tree"><figcaption>Turnout decision tree</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/leftover_by_dish.png" alt="Leftovers by dish"><figcaption>Average leftovers by dish</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/leftover_vs_made_per_student.png" alt="Leftovers versus portions"><figcaption>Leftovers versus portions made per student</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/leftover_by_time_of_day.png" alt="Leftovers by time of day"><figcaption>Leftovers by time of day</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/tree2_leftovers.png" alt="Leftover decision tree"><figcaption>Leftover decision tree</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/carbon_by_ingredient.png" alt="Carbon by ingredient"><figcaption>Carbon footprint by ingredient</figcaption></figure>
-      <figure class="card graph-card"><img src="/plots/most_consumed_dishes.png" alt="Most consumed dishes"><figcaption>Most consumed dishes</figcaption></figure>
+    <section class="gallery-layout">
+      <aside class="gallery-sidebar">
+        <h3>Available graphs</h3>
+        <div class="gallery-list" id="galleryList">
+          <button type="button" data-src="/plots/turnout_by_period.png" data-title="Turnout by time period">Turnout by time period</button>
+          <button type="button" data-src="/plots/turnout_by_day.png" data-title="Turnout by day of week">Turnout by day of week</button>
+          <button type="button" data-src="/plots/turnout_heatmap.png" data-title="Average turnout: day × time period">Turnout heatmap</button>
+          <button type="button" data-src="/plots/turnout_by_week.png" data-title="Turnout by week of term">Turnout by week</button>
+          <button type="button" data-src="/plots/tree1_turnout.png" data-title="Turnout decision tree">Turnout decision tree</button>
+          <button type="button" data-src="/plots/leftover_by_dish.png" data-title="Average leftovers by dish">Leftovers by dish</button>
+          <button type="button" data-src="/plots/leftover_vs_made_per_student.png" data-title="Leftovers versus portions made per student">Leftover efficiency</button>
+          <button type="button" data-src="/plots/leftover_by_time_of_day.png" data-title="Leftovers by time of day">Leftovers by time</button>
+          <button type="button" data-src="/plots/tree2_leftovers.png" data-title="Leftover decision tree">Leftover decision tree</button>
+          <button type="button" data-src="/plots/carbon_by_ingredient.png" data-title="Carbon footprint by ingredient">Carbon by ingredient</button>
+          <button type="button" data-src="/plots/most_consumed_dishes.png" data-title="Most consumed dishes">Most consumed dishes</button>
+        </div>
+      </aside>
+      <article class="card gallery-viewer">
+        <h2 id="galleryTitle">Turnout by time period</h2>
+        <img id="galleryImage" src="/plots/turnout_by_period.png" alt="Turnout by time period">
+      </article>
     </section>
+    <script>
+      const graphButtons = document.querySelectorAll("#galleryList button");
+      graphButtons.forEach(button => button.addEventListener("click", () => {
+        graphButtons.forEach(item => item.classList.remove("active"));
+        button.classList.add("active");
+        document.querySelector("#galleryTitle").textContent = button.dataset.title;
+        const image = document.querySelector("#galleryImage");
+        image.src = button.dataset.src;
+        image.alt = button.dataset.title;
+      }));
+      graphButtons[0].classList.add("active");
+    </script>
   </main>
 </body>
 </html>

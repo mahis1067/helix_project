@@ -29,6 +29,35 @@ MEAL_DISHES = {
     },
 }
 
+INVENTORY_SHEET = "kitchen_inventory"
+
+
+def ensure_inventory_sheet():
+    workbook = openpyxl.load_workbook(WORKBOOK)
+    if INVENTORY_SHEET not in workbook.sheetnames:
+        sheet = workbook.create_sheet(INVENTORY_SHEET)
+        sheet.append(["ingredient", "quantity_kg", "last_updated"])
+        totals = {}
+        for row in rows("table3_ingredients"):
+            ingredient = str(row["ingredient_bought"] or "").strip().lower()
+            totals[ingredient] = totals.get(ingredient, 0) + float(row["amount_kg"] or 0)
+        for ingredient, quantity in totals.items():
+            sheet.append([
+                ingredient,
+                quantity,
+                datetime.now(),
+            ])
+        workbook.save(WORKBOOK)
+
+
+def inventory_rows():
+    ensure_inventory_sheet()
+    workbook = openpyxl.load_workbook(WORKBOOK, data_only=True)
+    sheet = workbook[INVENTORY_SHEET]
+    headers = [cell.value for cell in sheet[1]]
+    return [dict(zip(headers, [cell.value for cell in row]))
+            for row in sheet.iter_rows(min_row=2)]
+
 
 def rows(sheet_name):
     workbook = openpyxl.load_workbook(WORKBOOK, data_only=True)
@@ -123,6 +152,64 @@ def dashboard_data():
     }
 
 
+def inventory_data():
+    data = dashboard_data()
+    emission_lookup = {
+        row["ingredient"]: row["kg_co2e_per_kg"]
+        for row in data["emission_factors"]
+        if row["kg_co2e_per_kg"] is not None
+    }
+    inventory = []
+    for row in inventory_rows():
+        quantity = float(row["quantity_kg"] or 0)
+        ingredient = str(row["ingredient"] or "").strip().lower()
+        if not ingredient:
+            continue
+        inventory.append({
+            "ingredient": ingredient,
+            "quantity_kg": round(quantity, 3),
+            "kg_co2e_per_kg": float(emission_lookup.get(ingredient, 0) or 0),
+            "stock_kg_co2e": round(quantity * float(emission_lookup.get(ingredient, 0) or 0), 3),
+            "last_updated": row["last_updated"].isoformat() if isinstance(row["last_updated"], datetime) else str(row["last_updated"] or ""),
+        })
+    inventory.sort(key=lambda item: item["quantity_kg"], reverse=True)
+    return inventory
+
+
+def update_inventory(ingredient, quantity_kg, action="set"):
+    ensure_inventory_sheet()
+    ingredient = ingredient.strip().lower()
+    if not ingredient:
+        raise ValueError("Ingredient is required")
+    quantity = float(quantity_kg)
+    if quantity < 0:
+        raise ValueError("Quantity cannot be negative")
+
+    workbook = openpyxl.load_workbook(WORKBOOK)
+    sheet = workbook[INVENTORY_SHEET]
+    matching_row = None
+    for row in range(2, sheet.max_row + 1):
+        if str(sheet.cell(row, 1).value or "").strip().lower() == ingredient:
+            matching_row = row
+            break
+
+    if matching_row:
+        current = float(sheet.cell(matching_row, 2).value or 0)
+        updated = quantity if action == "set" else current + quantity if action == "add" else max(current - quantity, 0)
+        sheet.cell(matching_row, 2).value = round(updated, 3)
+        sheet.cell(matching_row, 3).value = datetime.now()
+    else:
+        if action == "remove":
+            raise ValueError("Ingredient is not in inventory")
+        sheet.append([ingredient, round(quantity, 3), datetime.now()])
+    workbook.save(WORKBOOK)
+    updated_row = next((item for item in inventory_rows() if item["ingredient"] == ingredient), None)
+    return {
+        "ingredient": ingredient,
+        "quantity_kg": round(float(updated_row["quantity_kg"] or 0), 3) if updated_row else 0,
+    }
+
+
 def r_tree_insights():
     insights = {}
     for filename in ("r_turnout_tree_importance.csv", "r_leftover_tree_importance.csv"):
@@ -139,7 +226,9 @@ def recommend(period="afternoon", day=None, available=None):
     period = period.lower()
     if period not in PERIODS:
         period = "afternoon"
-    available = {item.strip().lower() for item in (available or []) if item.strip()}
+    inventory = inventory_data()
+    inventory_lookup = {item["ingredient"]: item["quantity_kg"] for item in inventory}
+    available = {name for name, quantity in inventory_lookup.items() if quantity > 0}
     data = dashboard_data()
 
     day = day or "Monday"
@@ -162,8 +251,8 @@ def recommend(period="afternoon", day=None, available=None):
             for item in dish["ingredients"].split(",")
             if item.strip()
         ]
-        available_count = sum(item in available for item in ingredients) if available else len(ingredients)
-        missing = [item for item in ingredients if item not in available] if available else []
+        available_count = sum(item in available for item in ingredients)
+        missing = [item for item in ingredients if item not in available]
         ingredient_coverage = available_count / len(ingredients) if ingredients else 0
 
         meal_fit = 1 if dish["dish"] in MEAL_DISHES[period] else 0
@@ -184,6 +273,20 @@ def recommend(period="afternoon", day=None, available=None):
             period_importance = insights.get("leftovers", {}).get("time_of_day_served", 0)
             score += 0.12 * dish_importance + 0.08 * period_importance
 
+        emission_lookup = {
+            row["ingredient"]: row["kg_co2e_per_kg"]
+            for row in data["emission_factors"]
+            if row["kg_co2e_per_kg"] is not None
+        }
+        carbon_breakdown = [
+            {
+                "ingredient": ingredient,
+                "kg_co2e_per_kg": float(emission_lookup.get(ingredient, 0) or 0),
+            }
+            for ingredient in ingredients
+        ]
+        dish_carbon = sum(item["kg_co2e_per_kg"] for item in carbon_breakdown)
+
         recommendations.append({
             **dish,
             "predicted_turnout": predicted_turnout,
@@ -191,10 +294,27 @@ def recommend(period="afternoon", day=None, available=None):
             "ingredient_coverage": round(ingredient_coverage * 100),
             "meal_fit": period if period in dish["periods"] or dish["dish"] in MEAL_DISHES[period] else "cross-period",
             "score": round(score, 1),
+            "score_breakdown": {
+                "meal_fit": round(35 * meal_fit, 1),
+                "popularity": round(25 * popularity, 1),
+                "low_waste": round(20 * low_leftover_bonus, 1),
+                "ingredient_coverage": round(20 * ingredient_coverage, 1),
+            },
+            "carbon_breakdown": carbon_breakdown,
+            "estimated_kg_co2e": round(dish_carbon, 3),
         })
 
     recommendations.sort(key=lambda item: item["score"], reverse=True)
-    top = recommendations[:3]
+    top = recommendations[:5]
+    total_score = sum(max(item["score"], 0) for item in top)
+    allocated = 0
+    for index, item in enumerate(top):
+        if index == len(top) - 1:
+            item["amount_to_make"] = max(predicted_turnout - allocated, 0)
+        else:
+            share = max(item["score"], 0) / total_score if total_score else 1 / len(top)
+            item["amount_to_make"] = int(round(predicted_turnout * share))
+            allocated += item["amount_to_make"]
     chosen = top[0] if top else None
     return {
         "period": period,
@@ -266,7 +386,10 @@ def add_entry(table, payload):
 
 class Handler(BaseHTTPRequestHandler):
     def send_json(self, status, payload):
-        body = json.dumps(payload).encode("utf-8")
+        body = json.dumps(
+            payload,
+            default=lambda value: value.isoformat() if isinstance(value, datetime) else str(value),
+        ).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -277,12 +400,34 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/data":
             self.send_json(200, dashboard_data())
+        elif parsed.path == "/api/inventory":
+            self.send_json(200, {"inventory": inventory_data()})
+        elif parsed.path == "/api/databases":
+            workbook = openpyxl.load_workbook(WORKBOOK, data_only=True)
+            tables = {}
+            for sheet in workbook.sheetnames:
+                worksheet = workbook[sheet]
+                headers = [str(cell.value) if cell.value is not None else "" for cell in worksheet[1]]
+                rows_out = []
+                for row in worksheet.iter_rows(min_row=2, values_only=True):
+                    if not any(value is not None for value in row):
+                        continue
+                    item = {}
+                    for index, header in enumerate(headers):
+                        if not header:
+                            continue
+                        value = row[index]
+                        if isinstance(value, datetime):
+                            value = value.isoformat()
+                        item[header] = value
+                    rows_out.append(item)
+                tables[sheet] = {"headers": [h for h in headers if h], "rows": rows_out}
+            self.send_json(200, {"tables": tables})
         elif parsed.path == "/api/recommend":
             params = parse_qs(parsed.query)
             period = params.get("period", ["morning"])[0]
             day = params.get("day", [None])[0]
-            available = params.get("available", [""])[0].split(",")
-            self.send_json(200, recommend(period, day, available))
+            self.send_json(200, recommend(period, day))
         elif parsed.path.startswith("/"):
             relative = parsed.path.lstrip("/")
             file_path = (ROOT / relative).resolve()
@@ -312,10 +457,22 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         parsed = urlparse(self.path)
+        length = int(self.headers.get("Content-Length", "0"))
+        if parsed.path == "/api/inventory":
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                updated = update_inventory(
+                    payload["ingredient"],
+                    payload["quantity_kg"],
+                    payload.get("action", "set"),
+                )
+                self.send_json(200, {"ok": True, "item": updated})
+            except Exception as exc:
+                self.send_json(400, {"ok": False, "error": str(exc)})
+            return
         if parsed.path != "/api/add":
             self.send_json(404, {"error": "Not found"})
             return
-        length = int(self.headers.get("Content-Length", "0"))
         try:
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             table = payload.pop("table")
@@ -329,6 +486,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", 8000), Handler)
-    print("Dining Hall Dashboard: http://127.0.0.1:8000")
+    ensure_inventory_sheet()
+    server = ThreadingHTTPServer(("127.0.0.1", 8010), Handler)
+    print("Dining Hall Dashboard: http://127.0.0.1:8010")
     server.serve_forever()
