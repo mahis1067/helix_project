@@ -8,6 +8,21 @@ app = Flask(__name__)
 app.json.sort_keys = False
 
 
+@app.route("/")
+def index():
+    return send_from_directory(recommend_dish.ROOT, "dashboard.html")
+
+
+@app.route("/<path:filename>")
+def static_file(filename):
+    file_path = (recommend_dish.ROOT / filename).resolve()
+    if recommend_dish.ROOT not in file_path.parents and file_path != recommend_dish.ROOT:
+        return jsonify({"error": "Forbidden"}), 403
+    if file_path.exists() and file_path.is_file():
+        return send_from_directory(recommend_dish.ROOT, filename)
+    return jsonify({"error": "Not found"}), 404
+
+
 def json_safe(value):
     if isinstance(value, dict):
         return {
