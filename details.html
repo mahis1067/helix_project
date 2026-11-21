@@ -27,13 +27,13 @@
 
     <section class="grid">
       <article class="card span-12">
-        <div class="formula-code">Score = 35 x meal-fit + 25 x popularity + 20 x low-waste + 20 x ingredient coverage</div>
+        <div class="formula-code">Score = dynamic meal-fit weight x fit + dynamic popularity weight x consumption + dynamic low-waste weight x (1 - leftovers) + dynamic ingredient-coverage weight x availability</div>
       </article>
       <div class="card span-12 formula-grid" style="display:grid">
-        <div class="formula"><strong>35 points - Meal fit</strong><p>A preferred dish for the selected meal period receives up to 1.5 points after scaling. Historically served-period matches receive an additional half point.</p></div>
-        <div class="formula"><strong>25 points - Popularity</strong><p>The consumed share is portions consumed divided by portions made. Higher historical consumption earns more points.</p></div>
-        <div class="formula"><strong>20 points - Low waste</strong><p>Calculated as 1 minus the dish's historical leftover ratio. Lower leftover percentages earn more points.</p></div>
-        <div class="formula"><strong>20 points - Ingredient coverage</strong><p>Percentage of the dish's listed ingredients available in kitchen inventory. No manual ingredient selection is used on the dashboard.</p></div>
+        <div class="formula"><strong>Meal fit</strong><p>A preferred dish for the selected meal period earns the fit share. The serving period's decision-tree importance can change this component's weight.</p></div>
+        <div class="formula"><strong>Popularity</strong><p>The consumed share is portions consumed divided by portions made. The dish factor's decision-tree importance can change this component's weight.</p></div>
+        <div class="formula"><strong>Low waste</strong><p>Calculated as 1 minus the dish's historical leftover ratio. Dish and portions-per-student importance can change this component's weight.</p></div>
+        <div class="formula"><strong>Ingredient coverage</strong><p>Percentage of the dish's listed ingredients available in kitchen inventory. This component can be changed in the scoring configuration without retraining the tree.</p></div>
       </div>
       <article class="card span-6">
         <h3>Carbon information</h3>

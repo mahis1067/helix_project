@@ -1,0 +1,25 @@
+{
+  "tree_influence": 0.5,
+  "components": {
+    "meal_fit": {
+      "weight": 35,
+      "model": "leftovers",
+      "factors": ["time_of_day_served", "time_period"]
+    },
+    "popularity": {
+      "weight": 25,
+      "model": "leftovers",
+      "factors": ["dish"]
+    },
+    "low_waste": {
+      "weight": 20,
+      "model": "leftovers",
+      "factors": ["dish", "made_per_student"]
+    },
+    "ingredient_coverage": {
+      "weight": 20,
+      "model": null,
+      "factors": []
+    }
+  }
+}

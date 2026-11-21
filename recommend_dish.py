@@ -30,6 +30,76 @@ MEAL_DISHES = {
 }
 
 INVENTORY_SHEET = "kitchen_inventory"
+SCORING_CONFIG = ROOT / "recommendation_scoring.json"
+
+DEFAULT_SCORING_CONFIG = {
+    "tree_influence": 0.5,
+    "components": {
+        "meal_fit": {
+            "weight": 35,
+            "model": "leftovers",
+            "factors": ["time_of_day_served", "time_period"],
+        },
+        "popularity": {
+            "weight": 25,
+            "model": "leftovers",
+            "factors": ["dish"],
+        },
+        "low_waste": {
+            "weight": 20,
+            "model": "leftovers",
+            "factors": ["dish", "made_per_student"],
+        },
+        "ingredient_coverage": {
+            "weight": 20,
+            "model": None,
+            "factors": [],
+        },
+    },
+}
+
+
+def load_scoring_config():
+    if not SCORING_CONFIG.exists():
+        return DEFAULT_SCORING_CONFIG
+    with SCORING_CONFIG.open(encoding="utf-8") as handle:
+        config = json.load(handle)
+    return validate_scoring_config(config)
+
+
+def validate_scoring_config(config):
+    if not isinstance(config, dict):
+        raise ValueError("Scoring config must be a JSON object")
+    influence = float(config.get("tree_influence", 0))
+    if not 0 <= influence <= 1:
+        raise ValueError("tree_influence must be between 0 and 1")
+
+    components = config.get("components")
+    if not isinstance(components, dict) or not components:
+        raise ValueError("components must be a non-empty object")
+
+    cleaned = {"tree_influence": influence, "components": {}}
+    for name, component in components.items():
+        if not isinstance(component, dict):
+            raise ValueError("Each component must be a JSON object")
+        weight = float(component.get("weight", 0))
+        if weight < 0:
+            raise ValueError("Component weights cannot be negative")
+        factors = component.get("factors", [])
+        if not isinstance(factors, list) or not all(isinstance(item, str) for item in factors):
+            raise ValueError("Component factors must be a list of names")
+        model = component.get("model")
+        if model is not None and not isinstance(model, str):
+            raise ValueError("Component model must be a string or null")
+        cleaned["components"][name] = {
+            "weight": weight,
+            "model": model,
+            "factors": factors,
+        }
+
+    if sum(item["weight"] for item in cleaned["components"].values()) <= 0:
+        raise ValueError("At least one component weight must be greater than zero")
+    return cleaned
 
 
 def ensure_inventory_sheet():
@@ -222,6 +292,30 @@ def r_tree_insights():
     return insights
 
 
+def effective_scoring_weights(config, insights):
+    influence = config["tree_influence"]
+    effective = {}
+
+    for name, component in config["components"].items():
+        base_weight = component["weight"]
+        model = component["model"]
+        importance_values = [
+            insights.get(model, {}).get(factor, 0)
+            for factor in component["factors"]
+        ]
+        factor_importance = max(importance_values) if importance_values else 0
+        factor_share = max(0, min(factor_importance, 100)) / 100
+        effective[name] = base_weight * (1 - influence + influence * factor_share)
+
+    total = sum(effective.values())
+    if total:
+        effective = {
+            name: weight * 100 / total
+            for name, weight in effective.items()
+        }
+    return effective
+
+
 def recommend(period="afternoon", day=None, available=None):
     period = period.lower()
     if period not in PERIODS:
@@ -242,7 +336,8 @@ def recommend(period="afternoon", day=None, available=None):
         predicted_turnout = data["period_attendance"][period]
 
     insights = r_tree_insights()
-    r_weight = 1 if insights else 0
+    config = load_scoring_config()
+    weights = effective_scoring_weights(config, insights)
     recommendations = []
 
     for dish in data["popular_dishes"]:
@@ -258,20 +353,18 @@ def recommend(period="afternoon", day=None, available=None):
         meal_fit = 1 if dish["dish"] in MEAL_DISHES[period] else 0
         if period in dish["periods"]:
             meal_fit += 0.5
+        meal_fit_score = min(meal_fit / 1.5, 1)
 
         low_leftover_bonus = 1 - dish["avg_leftover_pct"]
         popularity = dish["consumed_pct"]
 
-        score = (
-            35 * meal_fit
-            + 25 * popularity
-            + 20 * low_leftover_bonus
-            + 20 * ingredient_coverage
-        )
-        if r_weight:
-            dish_importance = insights.get("leftovers", {}).get("dish", 0)
-            period_importance = insights.get("leftovers", {}).get("time_of_day_served", 0)
-            score += 0.12 * dish_importance + 0.08 * period_importance
+        score_breakdown = {
+            "meal_fit": weights.get("meal_fit", 0) * meal_fit_score,
+            "popularity": weights.get("popularity", 0) * popularity,
+            "low_waste": weights.get("low_waste", 0) * low_leftover_bonus,
+            "ingredient_coverage": weights.get("ingredient_coverage", 0) * ingredient_coverage,
+        }
+        score = sum(score_breakdown.values())
 
         emission_lookup = {
             row["ingredient"]: row["kg_co2e_per_kg"]
@@ -295,10 +388,12 @@ def recommend(period="afternoon", day=None, available=None):
             "meal_fit": period if period in dish["periods"] or dish["dish"] in MEAL_DISHES[period] else "cross-period",
             "score": round(score, 1),
             "score_breakdown": {
-                "meal_fit": round(35 * meal_fit, 1),
-                "popularity": round(25 * popularity, 1),
-                "low_waste": round(20 * low_leftover_bonus, 1),
-                "ingredient_coverage": round(20 * ingredient_coverage, 1),
+                name: round(value, 1)
+                for name, value in score_breakdown.items()
+            },
+            "score_weights": {
+                name: round(value, 1)
+                for name, value in weights.items()
             },
             "carbon_breakdown": carbon_breakdown,
             "estimated_kg_co2e": round(dish_carbon, 3),
@@ -428,6 +523,17 @@ class Handler(BaseHTTPRequestHandler):
             period = params.get("period", ["morning"])[0]
             day = params.get("day", [None])[0]
             self.send_json(200, recommend(period, day))
+        elif parsed.path == "/api/scoring-config":
+            try:
+                insights = r_tree_insights()
+                config = load_scoring_config()
+                self.send_json(200, {
+                    "config": config,
+                    "tree_insights": insights,
+                    "effective_weights": effective_scoring_weights(config, insights),
+                })
+            except Exception as exc:
+                self.send_json(400, {"error": str(exc)})
         elif parsed.path.startswith("/"):
             relative = parsed.path.lstrip("/")
             file_path = (ROOT / relative).resolve()
@@ -458,6 +564,22 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         parsed = urlparse(self.path)
         length = int(self.headers.get("Content-Length", "0"))
+        if parsed.path == "/api/scoring-config":
+            try:
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                config = validate_scoring_config(payload)
+                with SCORING_CONFIG.open("w", encoding="utf-8") as handle:
+                    json.dump(config, handle, indent=2)
+                    handle.write("\n")
+                insights = r_tree_insights()
+                self.send_json(200, {
+                    "ok": True,
+                    "config": config,
+                    "effective_weights": effective_scoring_weights(config, insights),
+                })
+            except Exception as exc:
+                self.send_json(400, {"ok": False, "error": str(exc)})
+            return
         if parsed.path == "/api/inventory":
             try:
                 payload = json.loads(self.rfile.read(length).decode("utf-8"))
